@@ -1,0 +1,119 @@
+# Official framework image. Look for the different tagged releases at:
+# https://hub.docker.com/r/library/node/tags/
+image: node:20.9.0
+
+stages:
+  - build-dev
+  - build-prod
+
+
+##########################################################################
+##########                   Script Templates                   ##########
+##########################################################################
+
+.init_ssh: &init_ssh |
+  eval $(ssh-agent -s)
+  echo "$SSH_KEY" | tr -d '\r' | ssh-add - > /dev/null
+  echo "Added Key"
+  mkdir -p ~/.ssh
+  chmod 700 ~/.ssh
+  [[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+
+
+# This folder is cached between builds
+# https://docs.gitlab.com/ee/ci/yaml/index.html#cache
+cache:
+  paths:
+    - node_modules/
+
+##########################################################################
+##########                 Deploy Development                   ##########
+##########################################################################
+
+build-dev:
+  stage: build-dev
+  variables:
+    GIT_STRATEGY: clone
+    GIT_DEPTH: 1
+  script:
+      - *init_ssh
+      - echo "starting prep"
+      - npm install -g quasar
+      - npm install -g @quasar/cli
+      # install dependencies
+      - npm link @quasar/cli
+      - npm install --progress=false
+      # get current .env file
+      - scp web_wawi@10.50.0.201:/var/www/vhosts/wawi/testwawi.ulife.me/shared/.env /builds/webdev/wawi-frontend/.env
+      - echo "fetched .env file"
+      # set last commit hash as version
+      - export VERSION=$(git rev-parse --short HEAD)
+      - echo "set version to $VERSION"
+      # replace the BUILD_VERSION=... line in the .env file
+      - sed -i "s/BUILD_VERSION=.*/BUILD_VERSION=$VERSION/" .env
+      # build
+      - quasar build -d
+      - echo "starting deploy"
+      # upload new release to release folder
+      - folderDate=$(date +%Y%m%d%H%M%S)
+      - ssh web_wawi@10.50.0.201 "mkdir -p /var/www/vhosts/wawi/testwawi.ulife.me/releases/$folderDate"
+      - scp -r /builds/webdev/wawi-frontend/dist/spa/* web_wawi@10.50.0.201:/var/www/vhosts/wawi/testwawi.ulife.me/releases/$folderDate
+      # create symlink for latest release
+      - ssh web_wawi@10.50.0.201 "cp -rf /var/www/vhosts/wawi/testwawi.ulife.me/releases/$folderDate/* /var/www/vhosts/wawi/testwawi.ulife.me/current/public/"
+      # clean up old releases
+      - ssh web_wawi@10.50.0.201 '
+        cd /var/www/vhosts/wawi/testwawi.ulife.me/releases;
+        ls -t | tail -n +4 | xargs rm -rf;
+        '
+  environment:
+    name: dev
+    url: https://testwawi.ulife.me/
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+      when: always
+
+##########################################################################
+##########                    Deploy Prod                       ##########
+##########################################################################
+
+build-prod:
+  stage: build-prod
+  variables:
+    GIT_STRATEGY: clone
+    GIT_DEPTH: 1
+  script:
+    - *init_ssh
+    - echo "starting prep"
+    - npm install -g quasar
+    - npm install -g @quasar/cli
+    # install dependencies
+    - npm link @quasar/cli
+    - npm install --progress=false
+    # get current .env file
+    - scp -P 22 web_wawi@51.75.68.116:/var/www/vhosts/wawi/wawi.ulife.me/shared/.env /builds/webdev/wawi-frontend/.env
+    - echo "fetched .env file"
+    # set last commit hash as version
+    - export VERSION=$(git rev-parse --short HEAD)
+    - echo "set version to $VERSION"
+    # replace the BUILD_VERSION=... line in the .env file
+    - sed -i "s/BUILD_VERSION=.*/BUILD_VERSION=$VERSION/" .env
+    # build
+    - quasar build -d
+    - echo "starting deploy"
+    # upload new release to release folder
+    - folderDate=$(date +%Y%m%d%H%M%S)
+    - ssh web_wawi@51.75.68.116 -p 22 "mkdir -p /var/www/vhosts/wawi/wawi.ulife.me/releases/$folderDate"
+    - scp -P 22 -r /builds/webdev/wawi-frontend/dist/spa/* web_wawi@51.75.68.116:/var/www/vhosts/wawi/wawi.ulife.me/releases/$folderDate
+    # create symlink for latest release
+    - ssh web_wawi@51.75.68.116 -p 22 "cp -rf /var/www/vhosts/wawi/wawi.ulife.me/releases/$folderDate/* /var/www/vhosts/wawi/wawi.ulife.me/current/public/"
+    # clean up old releases
+    - ssh web_wawi@51.75.68.116 -p 22 '
+      cd /var/www/vhosts/wawi/wawi.ulife.me/releases;
+      ls -t | tail -n +4 | xargs rm -rf;
+      '
+  environment:
+    name: prod
+    url: https://wawi.ulife.me/
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: always

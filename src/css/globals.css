@@ -1,0 +1,45 @@
+/**
+CSS file for global default styles
+ */
+.hint-text {
+  color: #56b0ae;
+}
+body.body--dark {
+  color: #99999d;
+}
+.default-table-height {
+  height: 70vh !important;
+  min-height: 50vh !important;
+  max-width: 100%;
+}
+
+/* CALENDAR CUSTOM THEME */
+:root {
+  --calendar-background-dark: var(--q-dark) !important;
+  --calendar-current-background-dark: #565656 !important;
+  --calendar-border-current-dark: var(--q-accent) 3px solid !important;
+  --calendar-active-date-background-dark: var(--q-accent) !important;
+  --calendar-outside-background-dark: #0c0c0c !important;
+  --calendar-border-dark: var(--q-secondary) 1px solid !important;
+}
+
+/* END */
+
+/* Spionage Nav Theme */
+.spionage-gradient {
+  border-top-color: #0A4272 !important;
+  background: -webkit-linear-gradient(#0A4272, #B31836);
+}
+.spionage-gradient .q-item.q-router-link--active, .q-item--active {
+  color: #E1B132;
+}
+.spionage-gradient a:hover {
+  color: #E1B132 !important;
+}
+
+/* END */
+
+.q-item.q-router-link--active, .q-item--active {
+  color: var(--q-secondary);
+}
+
